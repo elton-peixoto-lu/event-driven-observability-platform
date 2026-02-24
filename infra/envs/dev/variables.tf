@@ -7,5 +7,5 @@ variable "region" {
 variable "project_name" {
     description = "Name of the project to be used in resource naming"
     type        = string
-    default     = "my-project"
+    default     = "event-driven-observability-platform"
 }

@@ -14,3 +14,14 @@ terraform {
 provider "aws" {
     region = var.region
 }
+
+resource "aws_cloudwatch_log_group" "core" {
+    name              = "/${var.project_name}/core"
+    retention_in_days = 14
+    
+    tags = {
+        Project = var.project_name
+        Environment = "dev"
+        ManagedBy = "terraform"
+    }
+}
