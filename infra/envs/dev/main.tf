@@ -41,3 +41,29 @@ resource "aws_sns_topic_subscription" "alerts_email" {
     protocol  = "email"
     endpoint  = var.alerts_email
 }
+
+resource "aws_sqs_queue" "events-dlq" {
+    name = "${var.project_name}-events-dlq"
+    message_retention_seconds =  1209600 # 14 days in seconds
+
+    tags = {
+        Project = var.project_name
+        Environment = "dev"
+        ManagedBy = "terraform"
+    }
+}
+
+resource "aws_sqs_queue" "events" {
+    name = "${var.project_name}-events"
+    message_retention_seconds = 345600 # 4 days in seconds 
+    redrive_policy = jsonencode({
+        deadLetterTargetArn = aws_sqs_queue.events-dlq.arn
+        maxReceiveCount     = 5
+    })
+
+    tags = {
+        Project = var.project_name
+        Environment = "dev"
+        ManagedBy = "terraform"
+    }
+}
