@@ -144,4 +144,6 @@ resource "aws_lambda_event_source_mapping" "sqs_trigger" {
     function_name    = aws_lambda_function.processor.arn
     batch_size       = 5
     enabled          = true
+
+    function_response_types = ["ReportBatchItemFailures"]
 }
