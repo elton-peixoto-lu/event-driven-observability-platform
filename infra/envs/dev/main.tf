@@ -207,3 +207,75 @@ resource "aws_apigatewayv2_api" "events_api" {
         ManagedBy = "terraform"
     }
 }
+
+resource "aws_iam_role" "apigateway_sqs_role" {
+    name = "${var.project_name}-apigateway-role"
+
+    assume_role_policy = jsonencode({
+        Version = "2012-10-17"
+        Statement = [
+            {
+                Action = "sts:AssumeRole"
+                Effect = "Allow"
+                Principal = {
+                    Service = "apigateway.amazonaws.com"
+                }
+            }
+        ]
+    })
+
+    tags = {
+        Project = var.project_name
+        Environment = "dev"
+        ManagedBy = "terraform"
+    }
+}
+
+resource "aws_iam_policy" "apigateway_sqs_policy" {
+    name = "${var.project_name}-apigateway-sqs-policy"
+
+    policy = jsonencode({
+        Version = "2012-10-17"
+        Statement = [
+            {
+                Action = [
+                    "sqs:SendMessage"
+                ]
+                Effect   = "Allow"
+                Resource = aws_sqs_queue.events.arn
+            }
+        ]
+    })
+}
+
+resource "aws_iam_role_policy_attachment" "apigateway_attach_sqs" {
+    role       = aws_iam_role.apigateway_sqs_role.name
+    policy_arn = aws_iam_policy.apigateway_sqs_policy.arn
+}
+
+resource "aws_apigatewayv2_integration" "sqs_integration" {
+    api_id           = aws_apigatewayv2_api.events_api.id
+    integration_type = "AWS_PROXY"
+    integration_subtype = "SQS-SendMessage"
+    credentials_arn = aws_iam_role.apigateway_sqs_role.arn
+    payload_format_version = "1.0"
+    request_parameters = {
+        QueueUrl = aws_sqs_queue.events.url
+        MessageBody = "$request.body"
+    }
+}
+
+resource "aws_apigatewayv2_route" "events_post" {
+    api_id    = aws_apigatewayv2_api.events_api.id
+    route_key = "POST /events"
+    target    = "integrations/${aws_apigatewayv2_integration.sqs_integration.id}"
+}
+
+resource "aws_apigatewayv2_stage" "dev" {
+    api_id      = aws_apigatewayv2_api.events_api.id
+    name        = "dev"
+    auto_deploy = true
+}
+
+
+
