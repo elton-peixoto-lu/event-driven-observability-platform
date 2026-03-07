@@ -277,5 +277,16 @@ resource "aws_apigatewayv2_stage" "dev" {
     auto_deploy = true
 }
 
+//cloud watch log group for api gateway
+resource "aws_cloudwatch_log_group" "api_gateway_logs" {
+    name              = "/aws/apigateway/${var.project_name}-events-api"
+    retention_in_days = 7
+    
+    tags = {
+        Project = var.project_name
+        Environment = "dev"
+        ManagedBy = "terraform"
+    }
+}
 
 
