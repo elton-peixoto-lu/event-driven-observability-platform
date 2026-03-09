@@ -275,9 +275,27 @@ resource "aws_apigatewayv2_stage" "dev" {
     api_id      = aws_apigatewayv2_api.events_api.id
     name        = "dev"
     auto_deploy = true
+
+    // Enable CloudWatch logging for API Gateway
+    access_log_settings {
+        destination_arn = aws_cloudwatch_log_group.api_gateway_logs.arn
+        format          = jsonencode({
+            requestId       = "$context.requestId"
+            ip              = "$context.identity.sourceIp"
+            routeKey        = "$context.routeKey"
+            requestTime     = "$context.requestTime"
+            httpMethod      = "$context.httpMethod"
+            resourcePath    = "$context.resourcePath"
+            responseLength  = "$context.responseLength"
+            latency         = "$context.integrationLatency"
+            routeKey        = "$context.routeKey"
+            status          = "$context.status"
+            protocol        = "$context.protocol"
+            integrationErrorMessage = "$context.integrationErrorMessage"
+        })
+    }
 }
 
-//cloud watch log group for api gateway
 resource "aws_cloudwatch_log_group" "api_gateway_logs" {
     name              = "/aws/apigateway/${var.project_name}-events-api"
     retention_in_days = 7
