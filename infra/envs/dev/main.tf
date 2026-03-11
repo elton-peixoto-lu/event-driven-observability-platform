@@ -311,4 +311,13 @@ resource "aws_cloudwatch_log_group" "api_gateway_logs" {
     }
 }
 
-
+resource "aws_cloudwatch_log_metric_filter" "api_4xx" {
+    name           = "${var.project_name}-api-4xx"
+    log_group_name = aws_cloudwatch_log_group.api_gateway_logs.name
+    pattern        = "{ $.status >= 400 && $.status < 500 }"
+    metric_transformation {
+        name      = "${var.project_name}-Api4xxCount"
+        namespace = "${var.project_name}/api-gateway"
+        value     = "1"
+    }
+}
