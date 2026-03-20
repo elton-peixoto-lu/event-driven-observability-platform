@@ -242,7 +242,6 @@ resource "aws_iam_role_policy_attachment" "lambda_attach_dynamodb" {
 resource "aws_apigatewayv2_api" "events_api" {
     name          = "${var.project_name}-events-api"
     protocol_type = "HTTP"
-
     tags = {
         Project = var.project_name
         Environment = "dev"
@@ -254,6 +253,9 @@ resource "aws_apigatewayv2_route" "events_post" {
     api_id    = aws_apigatewayv2_api.events_api.id
     route_key = "POST /events"
     target = "integrations/${aws_apigatewayv2_integration.lambda_ingestion.id}"
+
+     authorizer_id = aws_apigatewayv2_authorizer.cognito_jwt.id
+     authorization_type = "JWT"
 }
 
 resource "aws_apigatewayv2_stage" "dev" {
@@ -415,3 +417,54 @@ resource "aws_cloudwatch_metric_alarm" "queue_lag" {
         ManagedBy = "terraform"
     }
 }
+
+resource "aws_cognito_user_pool" "main" {
+    name = "${var.project_name}-user-pool"
+    
+    tags = {
+        Project = var.project_name
+        Environment = "dev"
+        ManagedBy = "terraform"
+    }
+}
+
+resource "aws_cognito_resource_server" "api_events" {
+    identifier   = "${var.project_name}-api"
+    name         = "${var.project_name}-resource-server"
+    user_pool_id = aws_cognito_user_pool.main.id
+
+    scope {
+        scope_name        = "write"
+        scope_description = "Send Events"
+    }
+}
+
+resource "aws_cognito_user_pool_client" "app_user" {
+    name                 = "${var.project_name}-api-client"
+    user_pool_id         = aws_cognito_user_pool.main.id
+
+    allowed_oauth_flows_user_pool_client = true
+    allowed_oauth_flows = ["client_credentials"]
+    allowed_oauth_scopes = ["${aws_cognito_resource_server.api_events.identifier}/write"]
+    generate_secret = true
+    explicit_auth_flows = []
+
+}
+
+resource "aws_apigatewayv2_authorizer" "cognito_jwt" {
+    api_id = aws_apigatewayv2_api.events_api.id
+    name   = "${var.project_name}-cognito-authorizer"
+    authorizer_type = "JWT"
+    identity_sources = ["$request.header.Authorization"]
+
+    jwt_configuration {
+        audience = [aws_cognito_user_pool_client.app_user.id]
+        issuer   = "https://cognito-idp.${var.region}.amazonaws.com/${aws_cognito_user_pool.main.id}"
+    }
+}
+
+resource "aws_cognito_user_pool_domain" "main" {
+    domain       = "${var.project_name}-auth"
+    user_pool_id = aws_cognito_user_pool.main.id
+}
+
