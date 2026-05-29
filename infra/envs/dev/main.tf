@@ -48,8 +48,8 @@ resource "aws_lambda_function" "ingestion" {
     handler       = "handler.handler"
     runtime       = "nodejs20.x"
 
-    filename      = "../../../services/ingestion/src/function.zip"
-    source_code_hash = filebase64sha256("../../../services/ingestion/src/function.zip")
+    filename      = "../../../artifacts/ingestion/function.zip"
+    source_code_hash = filebase64sha256("../../../artifacts/ingestion/function.zip")
 
     timeout = 10
     memory_size = 256
@@ -57,6 +57,7 @@ resource "aws_lambda_function" "ingestion" {
     environment {
         variables = {
             SQS_QUEUE_URL = aws_sqs_queue.events.url
+            METRICS_NAMESPACE = "ObservabilityPlatform"
         }
     }
 
@@ -168,8 +169,8 @@ resource "aws_lambda_function" "processor" {
     handler       = "handler.handler"
     runtime       = "nodejs20.x"
 
-    filename      = "../../../services/processor/src/function.zip"
-    source_code_hash = filebase64sha256("../../../services/processor/src/function.zip")
+    filename      = "../../../artifacts/processor/function.zip"
+    source_code_hash = filebase64sha256("../../../artifacts/processor/function.zip")
 
     timeout = 10
     memory_size = 256
@@ -177,6 +178,7 @@ resource "aws_lambda_function" "processor" {
     environment {
         variables = {
             IDEMPOTENCY_TABLE_NAME   = aws_dynamodb_table.idempotency.name
+            METRICS_NAMESPACE = "ObservabilityPlatform"
         }
     }
 
