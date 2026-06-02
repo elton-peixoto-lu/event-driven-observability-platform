@@ -1,11 +1,16 @@
 const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
-const { DynamoDBDocumentClient, PutCommand } = require("@aws-sdk/lib-dynamodb");
+const {
+  DynamoDBDocumentClient,
+  TransactWriteCommand,
+} = require("@aws-sdk/lib-dynamodb");
 const { emitMetric } = require("../../shared/metrics");
+const { createLogger } = require("../../shared/logger");
 
 const client = new DynamoDBClient({});
 const dynamoDb = DynamoDBDocumentClient.from(client);
 
 const TABLE_NAME = process.env.IDEMPOTENCY_TABLE_NAME;
+const ORDERS_TABLE_NAME = process.env.ORDERS_TABLE_NAME;
 
 const REQUIRED_FIELDS = ["eventId", "eventName", "eventType", "payload"];
 
@@ -23,6 +28,45 @@ function validateNormalizedEvent(body) {
   return missing;
 }
 
+async function persistEventTransaction({
+  eventId,
+  eventName,
+  eventType,
+  payload,
+}) {
+  const expiresAt = Math.floor(Date.now() / 1000) + 28 * 60 * 60;
+  const processedAt = new Date().toISOString();
+
+  await dynamoDb.send(
+    new TransactWriteCommand({
+      TransactItems: [
+        {
+          Put: {
+            TableName: TABLE_NAME,
+            Item: { eventId, expiresAt },
+            ConditionExpression: "attribute_not_exists(eventId)",
+          },
+        },
+        {
+          Put: {
+            TableName: ORDERS_TABLE_NAME,
+            Item: {
+              eventId,
+              eventName,
+              eventType,
+              orderId: payload.order_id,
+              customerId: payload.customer_id,
+              amount: payload.amount,
+              currency: payload.currency,
+              processedAt,
+            },
+          },
+        },
+      ],
+    }),
+  );
+}
+
 exports.handler = async (event) => {
   const failures = [];
 
@@ -34,17 +78,16 @@ exports.handler = async (event) => {
       const body = JSON.parse(record.body);
       correlationId = body._metadata?.correlationId ?? null;
 
+      const log = createLogger({
+        service: "processor",
+        correlationId,
+        messageId,
+      });
+
       const missingFields = validateNormalizedEvent(body);
       if (missingFields.length > 0) {
-        console.warn(
-          JSON.stringify({
-            level: "WARN",
-            messageId,
-            correlationId,
-            reason: "SchemaViolation",
-            missingFields,
-          }),
-        );
+        log.warn({ reason: "SchemaViolation", missingFields });
+
         emitMetric({
           namespace: process.env.METRICS_NAMESPACE || "ObservabilityPlatform",
           metricName: "EventRejected",
@@ -53,7 +96,7 @@ exports.handler = async (event) => {
         continue;
       }
 
-      const { eventId, eventType } = body;
+      const { eventId, eventName, eventType, payload } = body;
 
       // Transient failure
       if (body.failTransient) {
@@ -61,28 +104,24 @@ exports.handler = async (event) => {
       }
 
       try {
-        const expiresAt = Math.floor(Date.now() / 1000) + 28 * 60 * 60;
+        await persistEventTransaction(body);
 
-        await dynamoDb.send(
-          new PutCommand({
-            TableName: TABLE_NAME,
-            Item: {
-              eventId,
-              expiresAt,
-            },
-            ConditionExpression: "attribute_not_exists(eventId)",
-          }),
-        );
+        emitMetric({
+          namespace: process.env.METRICS_NAMESPACE || "ObservabilityPlatform",
+          metricName: "EventProcessed",
+          service: "processor",
+        });
+
+        log.info({ eventId, eventType, message: "Processed successfully" });
       } catch (err) {
-        if (err.name === "ConditionalCheckFailedException") {
-          console.log(
-            JSON.stringify({
-              level: "INFO",
-              eventId,
-              correlationId,
-              message: "Idempotency: Duplicated Message ignored",
-            }),
-          );
+        if (
+          err.name === "TransactionCanceledException" &&
+          err.CancellationReasons?.[0]?.Code === "ConditionalCheckFailed"
+        ) {
+          log.info({
+            eventId,
+            message: "Idempotency: Duplicated Message ignored",
+          });
           emitMetric({
             namespace: process.env.METRICS_NAMESPACE || "ObservabilityPlatform",
             metricName: "EventDuplicated",
@@ -92,33 +131,13 @@ exports.handler = async (event) => {
         }
         throw err;
       }
-
-      emitMetric({
-        namespace: process.env.METRICS_NAMESPACE || "ObservabilityPlatform",
-        metricName: "EventProcessed",
-        service: "processor",
-      });
-
-      console.log(
-        JSON.stringify({
-          level: "INFO",
-          eventId,
-          correlationId,
-          eventType,
-          body,
-          message: "Processed successfully",
-        }),
-      );
     } catch (err) {
-      console.error(
-        JSON.stringify({
-          level: "ERROR",
-          messageId,
-          correlationId,
-          body,
-          error: err.message,
-        }),
-      );
+      const log = createLogger({
+        service: "processor",
+        correlationId,
+        messageId,
+      });
+      log.error({ error: err.message });
 
       emitMetric({
         namespace: process.env.METRICS_NAMESPACE || "ObservabilityPlatform",
