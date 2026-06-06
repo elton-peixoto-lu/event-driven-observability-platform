@@ -269,7 +269,7 @@ resource "aws_cloudwatch_dashboard" "main" {
           ]
         }
       },
-      # Row 5: Event Loss Detection
+      # Row 5: Event Flow & Unresolved Events
       {
         type   = "metric"
         width  = 12
@@ -282,13 +282,12 @@ resource "aws_cloudwatch_dashboard" "main" {
             ["ObservabilityPlatform", "EventProcessed", "Service", "processor", { id = "m2", stat = "Sum", label = "Processed", color = "#1f77b4" }],
             ["ObservabilityPlatform", "EventRejected", "Service", "processor", { id = "m3", stat = "Sum", label = "Rejected", color = "#d62728" }],
             ["ObservabilityPlatform", "EventDuplicated", "Service", "processor", { id = "m4", stat = "Sum", label = "Duplicated", color = "#ff7f0e" }],
-            ["ObservabilityPlatform", "EventRetried", "Service", "processor", { id = "m5", stat = "Sum", label = "Retried", color = "#e377c2" }],
-            [{ expression = "FILL(m1,0)-FILL(m2,0)-FILL(m3,0)-FILL(m4,0)-FILL(m5,0)", label = "Potential Loss", id = "e1", color = "#8c564b" }]
+            [{ expression = "FILL(m1,0)-FILL(m2,0)-FILL(m3,0)-FILL(m4,0)", label = "Unresolved Events", id = "e1", color = "#8c564b" }]
           ]
           view    = "timeSeries"
           stacked = false
           region  = var.region
-          title   = "Event Flow & Loss Detection"
+          title   = "Event Flow & Unresolved Events"
           period  = 60
           yAxis = {
             left = { min = 0 }
@@ -303,16 +302,15 @@ resource "aws_cloudwatch_dashboard" "main" {
         y      = 24
         properties = {
           metrics = [
-            [{ expression = "FILL(m1,0)-FILL(m2,0)-FILL(m3,0)-FILL(m4,0)-FILL(m5,0)", label = "Events Lost (24h)", id = "e1" }],
+            [{ expression = "FILL(m1,0)-FILL(m2,0)-FILL(m3,0)-FILL(m4,0)", label = "Unresolved Events (24h)", id = "e1" }],
             ["ObservabilityPlatform", "EventIngested", "Service", "ingestion", { id = "m1", stat = "Sum", visible = false }],
             ["ObservabilityPlatform", "EventProcessed", "Service", "processor", { id = "m2", stat = "Sum", visible = false }],
             ["ObservabilityPlatform", "EventRejected", "Service", "processor", { id = "m3", stat = "Sum", visible = false }],
-            ["ObservabilityPlatform", "EventDuplicated", "Service", "processor", { id = "m4", stat = "Sum", visible = false }],
-            ["ObservabilityPlatform", "EventRetried", "Service", "processor", { id = "m5", stat = "Sum", visible = false }]
+            ["ObservabilityPlatform", "EventDuplicated", "Service", "processor", { id = "m4", stat = "Sum", visible = false }]
           ]
           view   = "singleValue"
           region = var.region
-          title  = "Potential Event Loss (24h)"
+          title  = "Unresolved Events (24h)"
           period = 86400
         }
       },

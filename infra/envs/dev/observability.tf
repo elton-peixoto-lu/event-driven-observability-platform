@@ -50,8 +50,9 @@ resource "aws_cloudwatch_metric_alarm" "api_4xx_spike" {
   metric_name         = "${var.project_name}-Api4xxCount"
   statistic           = "Sum"
   period              = 60
-  evaluation_periods  = 1
+  evaluation_periods  = 2
   threshold           = 5
+  treat_missing_data  = "notBreaching"
   comparison_operator = "GreaterThanOrEqualToThreshold"
 
   alarm_actions = [aws_sns_topic.alerts.arn]
@@ -70,8 +71,9 @@ resource "aws_cloudwatch_metric_alarm" "lambda_errors" {
   metric_name         = "Errors"
   statistic           = "Sum"
   period              = 60
-  evaluation_periods  = 1
+  evaluation_periods  = 2
   threshold           = 1
+  treat_missing_data  = "notBreaching"
   comparison_operator = "GreaterThanOrEqualToThreshold"
 
   dimensions = {
@@ -97,6 +99,7 @@ resource "aws_cloudwatch_metric_alarm" "dlq_depth" {
   period              = 60
   evaluation_periods  = 1
   threshold           = 1
+  treat_missing_data  = "notBreaching"
   comparison_operator = "GreaterThanOrEqualToThreshold"
 
   dimensions = {
@@ -121,6 +124,7 @@ resource "aws_cloudwatch_metric_alarm" "queue_lag" {
   period              = 60
   evaluation_periods  = 1
   threshold           = 120
+  treat_missing_data  = "notBreaching"
   comparison_operator = "GreaterThanOrEqualToThreshold"
 
   dimensions = {
