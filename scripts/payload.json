@@ -1,1 +1,11 @@
-{ "eventId": "evt-flood-test2", "type": "test2" }
+{
+  "eventId": "event_id_example",
+  "eventName": "Order Created",
+  "eventType": "OrderCreated",
+  "payload": {
+    "order_id": "order_id_example",
+    "customer_id": "customer_id_example",
+    "amount": 149.9,
+    "currency": "USD"
+  }
+}

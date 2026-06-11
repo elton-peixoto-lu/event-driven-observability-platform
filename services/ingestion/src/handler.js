@@ -65,6 +65,11 @@ exports.handler = async (event, context) => {
       };
     }
 
+    // Ingestion failure
+    if (body.forceIngestionFailure) {
+      throw new Error("Ingestion Failure");
+    }
+
     const normalizedEvent = {
       eventId: body.eventId,
       eventName: body.eventName,
@@ -100,7 +105,7 @@ exports.handler = async (event, context) => {
     });
 
     return {
-      statusCode: 200,
+      statusCode: 202,
       headers: { "x-correlation-id": correlationId },
       body: JSON.stringify({
         message: "Event received and queued for processing",
