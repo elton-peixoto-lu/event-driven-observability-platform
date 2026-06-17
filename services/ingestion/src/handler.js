@@ -1,6 +1,8 @@
 const { SQSClient, SendMessageCommand } = require("@aws-sdk/client-sqs");
 const { emitMetric } = require("../../shared/metrics");
 const { createLogger } = require("../../shared/logger");
+const { encryptSensitiveValue, maskSsn } = require("../../shared/kms");
+const { upsertCustomerSensitiveData } = require("../../shared/supabase");
 const { randomUUID } = require("crypto");
 
 const REQUIRED_FIELDS = ["eventId", "eventName", "eventType", "payload"];
@@ -10,6 +12,61 @@ const REQUIRED_PAYLOAD_FIELDS = [
   "amount",
   "currency",
 ];
+
+function getPlaintextSsn(payload) {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+
+  if (typeof payload.ssn === "string" && payload.ssn.trim() !== "") {
+    return payload.ssn;
+  }
+
+  if (
+    payload.sensitive &&
+    typeof payload.sensitive === "object" &&
+    typeof payload.sensitive.ssn === "string" &&
+    payload.sensitive.ssn.trim() !== ""
+  ) {
+    return payload.sensitive.ssn;
+  }
+
+  return null;
+}
+
+function isValidSsnInput(value) {
+  return String(value || "").replace(/\D/g, "").length === 9;
+}
+
+function normalizeCustomerId(value) {
+  if (typeof value === "number" && Number.isInteger(value)) {
+    return value;
+  }
+
+  if (typeof value === "string" && /^[0-9]+$/.test(value.trim())) {
+    return Number(value.trim());
+  }
+
+  return null;
+}
+
+function buildSanitizedPayload(payload, ssnMasked) {
+  const sanitizedPayload = {
+    ...payload,
+    sensitive: {
+      ...(payload.sensitive && typeof payload.sensitive === "object"
+        ? payload.sensitive
+        : {}),
+      ssn_masked: ssnMasked,
+      ssn_ref: payload.customer_id,
+    },
+  };
+
+  delete sanitizedPayload.ssn;
+  delete sanitizedPayload.sensitive.ssn;
+
+  return sanitizedPayload;
+}
 
 function validate(body) {
   const missing = [];
@@ -65,16 +122,83 @@ exports.handler = async (event, context) => {
       };
     }
 
+    const plaintextSsn = getPlaintextSsn(body.payload);
+    const normalizedCustomerId = normalizeCustomerId(body.payload.customer_id);
+    if (plaintextSsn && !isValidSsnInput(plaintextSsn)) {
+      log.warn({ reason: "SchemaViolation", invalidField: "payload.sensitive.ssn" });
+      emitMetric({
+        namespace: process.env.METRICS_NAMESPACE || "ObservabilityPlatform",
+        metricName: "EventRejected",
+        service: "ingestion",
+      });
+      return {
+        statusCode: 400,
+        headers: { "x-correlation-id": correlationId },
+        body: JSON.stringify({
+          message: "Contract violation",
+          invalidField: "payload.sensitive.ssn",
+          correlationId,
+        }),
+      };
+    }
+
+    if (plaintextSsn && normalizedCustomerId == null) {
+      log.warn({ reason: "SchemaViolation", invalidField: "payload.customer_id" });
+      emitMetric({
+        namespace: process.env.METRICS_NAMESPACE || "ObservabilityPlatform",
+        metricName: "EventRejected",
+        service: "ingestion",
+      });
+      return {
+        statusCode: 400,
+        headers: { "x-correlation-id": correlationId },
+        body: JSON.stringify({
+          message: "Contract violation",
+          invalidField: "payload.customer_id",
+          correlationId,
+        }),
+      };
+    }
+
     // Ingestion failure
     if (body.forceIngestionFailure) {
       throw new Error("Ingestion Failure");
+    }
+
+    let sanitizedPayload = {
+      ...body.payload,
+      ...(normalizedCustomerId != null
+        ? { customer_id: normalizedCustomerId }
+        : {}),
+    };
+    let hasSensitiveData = false;
+
+    if (plaintextSsn) {
+      const ssnMasked = maskSsn(plaintextSsn);
+      const { ciphertext, encryptionVersion } = await encryptSensitiveValue(
+        plaintextSsn,
+        {
+          field: "ssn",
+          service: "ingestion",
+        },
+      );
+
+      await upsertCustomerSensitiveData({
+        customerId: normalizedCustomerId,
+        ssnMasked,
+        ssnEncrypted: ciphertext,
+        encryptionVersion,
+      });
+
+      sanitizedPayload = buildSanitizedPayload(sanitizedPayload, ssnMasked);
+      hasSensitiveData = true;
     }
 
     const normalizedEvent = {
       eventId: body.eventId,
       eventName: body.eventName,
       eventType: body.eventType,
-      payload: body.payload,
+      payload: sanitizedPayload,
       failTransient: body.failTransient === true,
       _metadata: {
         correlationId,
@@ -95,6 +219,7 @@ exports.handler = async (event, context) => {
     log.info({
       eventId: body.eventId,
       eventType: body.eventType,
+      hasSensitiveData,
       message: "Event ingested successfully",
     });
 

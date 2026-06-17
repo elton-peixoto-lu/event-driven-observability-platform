@@ -12,8 +12,12 @@ resource "aws_lambda_function" "ingestion" {
 
   environment {
     variables = {
-      SQS_QUEUE_URL     = aws_sqs_queue.events.url
-      METRICS_NAMESPACE = "ObservabilityPlatform"
+      SQS_QUEUE_URL                       = aws_sqs_queue.events.url
+      METRICS_NAMESPACE                   = "ObservabilityPlatform"
+      SUPABASE_SECRET_ARN                 = aws_secretsmanager_secret.supabase.arn
+      ENVIRONMENT                         = var.environment
+      SENSITIVE_FIELDS_KMS_KEY_ID         = aws_kms_key.infra.arn
+      SENSITIVE_FIELDS_ENCRYPTION_VERSION = "kms-v1"
     }
   }
 
@@ -34,9 +38,13 @@ resource "aws_lambda_function" "processor" {
 
   environment {
     variables = {
-      IDEMPOTENCY_TABLE_NAME = aws_dynamodb_table.idempotency.name
-      ORDERS_TABLE_NAME      = aws_dynamodb_table.orders.name
-      METRICS_NAMESPACE      = "ObservabilityPlatform"
+      IDEMPOTENCY_TABLE_NAME              = aws_dynamodb_table.idempotency.name
+      ORDERS_TABLE_NAME                   = aws_dynamodb_table.orders.name
+      METRICS_NAMESPACE                   = "ObservabilityPlatform"
+      SUPABASE_SECRET_ARN                 = aws_secretsmanager_secret.supabase.arn
+      ENVIRONMENT                         = var.environment
+      SENSITIVE_FIELDS_KMS_KEY_ID         = aws_kms_key.infra.arn
+      SENSITIVE_FIELDS_ENCRYPTION_VERSION = "kms-v1"
     }
   }
 

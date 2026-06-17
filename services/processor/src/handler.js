@@ -5,6 +5,10 @@ const {
 } = require("@aws-sdk/lib-dynamodb");
 const { emitMetric } = require("../../shared/metrics");
 const { createLogger } = require("../../shared/logger");
+const {
+  assertCustomerSensitiveDataExists,
+  getSupabaseConfig,
+} = require("../../shared/supabase");
 
 const client = new DynamoDBClient({});
 const dynamoDb = DynamoDBDocumentClient.from(client);
@@ -13,6 +17,12 @@ const TABLE_NAME = process.env.IDEMPOTENCY_TABLE_NAME;
 const ORDERS_TABLE_NAME = process.env.ORDERS_TABLE_NAME;
 
 const REQUIRED_FIELDS = ["eventId", "eventName", "eventType", "payload"];
+const REQUIRED_PAYLOAD_FIELDS = [
+  "order_id",
+  "customer_id",
+  "amount",
+  "currency",
+];
 
 function validateNormalizedEvent(body) {
   const missing = [];
@@ -23,6 +33,12 @@ function validateNormalizedEvent(body) {
 
   if (body.payload != null && typeof body.payload !== "object") {
     missing.push("payload (must be object)");
+  }
+
+  if (body.payload != null && typeof body.payload === "object") {
+    for (const field of REQUIRED_PAYLOAD_FIELDS) {
+      if (body.payload[field] == null) missing.push(`payload.${field}`);
+    }
   }
 
   return missing;
@@ -67,6 +83,16 @@ async function persistEventTransaction({
   );
 }
 
+function hasSensitiveReference(payload) {
+  return Boolean(
+    payload &&
+      payload.sensitive &&
+      typeof payload.sensitive === "object" &&
+      payload.sensitive.ssn_masked &&
+      payload.sensitive.ssn_ref,
+  );
+}
+
 exports.handler = async (event) => {
   const failures = [];
 
@@ -101,6 +127,11 @@ exports.handler = async (event) => {
       // Transient failure
       if (body.failTransient) {
         throw new Error("Transient processing error");
+      }
+
+      if (hasSensitiveReference(payload)) {
+        await getSupabaseConfig();
+        await assertCustomerSensitiveDataExists(payload.sensitive.ssn_ref);
       }
 
       try {

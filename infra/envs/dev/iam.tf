@@ -35,6 +35,21 @@ resource "aws_iam_role_policy" "lambda_sqs_send" {
         ]
         Effect   = "Allow"
         Resource = aws_sqs_queue.events.arn
+      },
+      {
+        Action = [
+          "secretsmanager:GetSecretValue"
+        ]
+        Effect   = "Allow"
+        Resource = aws_secretsmanager_secret.supabase.arn
+      },
+      {
+        Action = [
+          "kms:Encrypt",
+          "kms:Decrypt"
+        ]
+        Effect   = "Allow"
+        Resource = aws_kms_key.infra.arn
       }
     ]
   })
@@ -104,6 +119,20 @@ resource "aws_iam_policy" "lambda_dynamodb_policy" {
           aws_dynamodb_table.idempotency.arn,
           aws_dynamodb_table.orders.arn
         ]
+      },
+      {
+        Action = [
+          "secretsmanager:GetSecretValue"
+        ]
+        Effect   = "Allow"
+        Resource = aws_secretsmanager_secret.supabase.arn
+      },
+      {
+        Action = [
+          "kms:Decrypt"
+        ]
+        Effect   = "Allow"
+        Resource = aws_kms_key.infra.arn
       }
     ]
   })
