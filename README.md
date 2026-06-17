@@ -76,7 +76,7 @@ assets/              Evidence screenshots
 ## Requirements
 
 - Node.js
-- Terraform
+- Terraform 1.5+
 - AWS CLI configured with credentials for the target AWS account
 - An email address for SNS alert subscription confirmation
 
@@ -102,10 +102,46 @@ cp infra/envs/dev/terraform.tfvars.example infra/envs/dev/terraform.tfvars
 Then edit `infra/envs/dev/terraform.tfvars`:
 
 ```hcl
+environment  = "dev"
 alerts_email = "your-email@example.com"
 ```
 
 The real `terraform.tfvars` file is intentionally ignored by Git.
+
+## Supabase Secret Setup
+
+This lab uses Supabase REST for `public.orders`, but the real service role key must stay outside Git, Terraform code, Terraform outputs, Lambda plaintext env vars, and test payloads.
+
+Terraform creates only the Secrets Manager secret container:
+
+```hcl
+resource "aws_secretsmanager_secret" "supabase" {
+  name        = "${var.environment}/orders/supabase"
+  description = "Supabase credentials for orders lab"
+}
+```
+
+After `terraform apply`, populate the secret value manually through AWS CLI, console, or a secure pipeline. Do not create a version with the real value in versioned Terraform.
+
+Suggested secret JSON:
+
+```json
+{
+  "SUPABASE_REST_URL": "https://bfeydmouleklgysiugtn.supabase.co/rest/v1/",
+  "SUPABASE_DATABASE": "orders",
+  "SUPABASE_SERVICE_ROLE_KEY": "<set-manually-outside-git>"
+}
+```
+
+Example AWS CLI flow after the secret container exists:
+
+```bash
+aws secretsmanager put-secret-value \
+  --secret-id dev/orders/supabase \
+  --secret-string '{"SUPABASE_REST_URL":"https://bfeydmouleklgysiugtn.supabase.co/rest/v1/","SUPABASE_DATABASE":"orders","SUPABASE_SERVICE_ROLE_KEY":"<set-manually>"}'
+```
+
+Both Lambdas load the secret at runtime from Secrets Manager. The only Supabase-related env var passed to code is `SUPABASE_SECRET_ARN`.
 
 ## Deploy
 
@@ -133,9 +169,32 @@ terraform output dashboard_url
   "eventType": "OrderCreated",
   "payload": {
     "order_id": "order_001",
+    "customer_id": 1001,
+    "amount": 149.9,
+    "currency": "USD",
+    "sensitive": {
+      "ssn": "<provided-at-request-time>"
+    }
+  }
+}
+```
+
+The ingestion Lambda immediately encrypts the SSN with AWS KMS, stores only ciphertext plus masked metadata in Supabase, and publishes a sanitized event to SQS:
+
+```json
+{
+  "eventId": "evt-001",
+  "eventName": "Order Created",
+  "eventType": "OrderCreated",
+  "payload": {
+    "order_id": "order_001",
     "customer_id": "customer_001",
     "amount": 149.9,
-    "currency": "USD"
+    "currency": "USD",
+    "sensitive": {
+      "ssn_masked": "***-**-6789",
+      "ssn_ref": 1001
+    }
   }
 }
 ```
@@ -160,6 +219,9 @@ terraform output dashboard_url
 
 - IAM roles are scoped by Lambda responsibility.
 - Terraform variables avoid committing personal alert endpoints.
+- Supabase secrets stay in AWS Secrets Manager; the real service role key is never committed, logged, sent to SQS, or exposed in Terraform outputs.
+- `public.orders` stores only masked metadata and KMS ciphertext. Plaintext SSNs are discarded immediately after encryption.
+- In the validated lab dataset, `customer_id` is a numeric identifier for the Supabase-sensitive record flow.
 - DynamoDB uses on-demand billing for the dev environment.
 - CloudWatch dashboards, alarms, logs, and custom metrics can generate cost; clean up resources when no longer needed.
 
