@@ -1,0 +1,32 @@
+flowchart TD
+  classDef source fill:#E8F3FF,stroke:#2563EB,color:#0F172A,stroke-width:1.5px;
+  classDef action fill:#F3E8FF,stroke:#7C3AED,color:#0F172A,stroke-width:1.5px;
+  classDef state fill:#DCFCE7,stroke:#15803D,color:#0F172A,stroke-width:1.5px;
+  classDef guard fill:#FEF3C7,stroke:#D97706,color:#0F172A,stroke-width:1.5px;
+
+  pr[Pull Request to main]:::source --> plan[terraform-plan.yml]:::action
+  push[Push to main or manual dispatch]:::source --> apply[terraform-apply.yml]:::action
+  schedule[Daily schedule or manual dispatch]:::source --> drift[terraform-drift.yml]:::action
+
+  subgraph common[Common CI steps]
+    ci1[npm ci]:::action --> ci2[npm test]:::action
+    ci2 --> ci3[npm run build]:::action
+    ci3 --> ci4[OIDC assume AWS role]:::action
+    ci4 --> ci5[terraform init]:::action
+    ci5 --> ci6[terraform validate]:::action
+  end
+
+  plan --> ci1
+  apply --> ci1
+  drift --> ci1
+
+  ci6 --> planStep[terraform plan and upload plan artifact]:::state
+  ci6 --> applyStep[terraform plan then terraform apply]:::state
+  ci6 --> driftStep[terraform plan -detailed-exitcode]:::state
+
+  driftStep -->|exit 0| driftOk[No drift]:::state
+  driftStep -->|exit 2| driftFail[Upload artifact and fail job]:::guard
+
+  secrets[GitHub Secret<br/>TF_VAR_ALERTS_EMAIL]:::guard --> ci1
+  backend[S3 State + DynamoDB Lock + KMS]:::guard --> ci5
+  env[GitHub Environment dev]:::guard --> apply

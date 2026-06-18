@@ -8,6 +8,8 @@ This project is intentionally focused on practical cloud engineering: reliable a
 
 ![Architecture diagram](assets/architecture.png)
 
+Mermaid source: [assets/architecture.mmd](/Users/eltonpeixoto/dev/event-driven-observability-platform/assets/architecture.mmd:1)
+
 - **API Gateway HTTP API** exposes the event ingestion endpoint.
 - **Ingestion Lambda** validates incoming events, adds correlation metadata, emits EMF metrics, and sends accepted events to SQS.
 - **SQS queue + DLQ** decouple ingestion from processing and isolate messages that exceed retry limits.
@@ -143,6 +145,19 @@ aws secretsmanager put-secret-value \
 
 Both Lambdas load the secret at runtime from Secrets Manager. The only Supabase-related env var passed to code is `SUPABASE_SECRET_ARN`.
 
+## Sensitive Data Flow
+
+![Sensitive data flow](assets/sensitive-flow.png)
+
+Mermaid source: [assets/sensitive-flow.mmd](/Users/eltonpeixoto/dev/event-driven-observability-platform/assets/sensitive-flow.mmd:1)
+
+- Plaintext SSN exists only inside the inbound request and in-memory handling inside the ingestion Lambda.
+- The ingestion Lambda encrypts the SSN with AWS KMS immediately.
+- Supabase stores only `ssn_masked`, `ssn_encrypted`, and `encryption_version`.
+- The event published to SQS contains only masked metadata (`ssn_masked`, `ssn_ref`).
+- DynamoDB stores business data only, without SSN plaintext or ciphertext fields.
+- Logs and HTTP responses expose correlation metadata, not the SSN plaintext.
+
 ## Deploy
 
 ```bash
@@ -172,6 +187,17 @@ GitHub Actions now uses AWS OIDC with short-lived credentials and the remote Ter
 - The CI pipeline runs `npm test` before building artifacts, covering Lambda ingestion, Lambda processing, and safe log redaction behavior with mocked AWS/Supabase dependencies.
 - `alerts_email` is injected through the GitHub secret `TF_VAR_ALERTS_EMAIL`, so the workflows can plan/apply without hardcoding operational values in the repository.
 - The apply workflow targets the GitHub `dev` environment, so you can add required reviewers or wait timers in repository settings without changing code.
+
+### CI/CD Today
+
+![CI/CD current flow](assets/cicd-current.png)
+
+Mermaid source: [assets/cicd-current.mmd](/Users/eltonpeixoto/dev/event-driven-observability-platform/assets/cicd-current.mmd:1)
+
+- `terraform-plan.yml`: runs on PRs to `main`, produces the plan artifact, and never applies.
+- `terraform-apply.yml`: runs on `main` push or manual dispatch, uses the GitHub `dev` environment, and applies the approved plan path.
+- `terraform-drift.yml`: runs daily and on demand, and fails if `terraform plan -detailed-exitcode` detects drift.
+- All three workflows now pass through `npm ci`, `npm test`, `npm run build`, OIDC, `terraform init`, and `terraform validate`.
 
 ## Example Event
 
@@ -222,7 +248,7 @@ The ingestion Lambda immediately encrypts the SSN with AWS KMS, stores only ciph
 
 ## Limitations And Future Improvements
 
-- Automated tests are not implemented yet.
+- Unit tests cover ingestion, processor, and safe log redaction paths, but broader integration and end-to-end tests are still not implemented.
 - A future DLQ observer could emit `EventDeadLettered` while preserving replay/investigation semantics.
 - The current environment is a single dev deployment, not a multi-environment production module.
 - Some operational scenarios are intentionally simulated to demonstrate observability and incident response.

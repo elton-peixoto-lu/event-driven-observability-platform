@@ -1,0 +1,57 @@
+flowchart TD
+  classDef edge fill:#E8F3FF,stroke:#2563EB,color:#0F172A,stroke-width:1.5px;
+  classDef data fill:#DCFCE7,stroke:#15803D,color:#0F172A,stroke-width:1.5px;
+  classDef ops fill:#FEF3C7,stroke:#D97706,color:#0F172A,stroke-width:1.5px;
+  classDef ci fill:#F3E8FF,stroke:#7C3AED,color:#0F172A,stroke-width:1.5px;
+
+  client[Client or Producer]:::edge --> api[API Gateway HTTP API]:::edge
+  api --> auth[Cognito JWT Authorizer]:::edge
+  auth --> ingestion[Ingestion Lambda]:::edge
+
+  subgraph processing[Event Processing]
+    direction LR
+    ingestion --> kms[KMS Encrypt SSN]:::edge
+    ingestion --> sqs[SQS Events Queue]:::edge
+    sqs --> processor[Processor Lambda]:::edge
+    sqs --> dlq[DLQ]:::ops
+  end
+
+  subgraph storage[Data Stores]
+    direction LR
+    supabase[Supabase REST<br/>public.orders]:::data
+    orders[DynamoDB Orders]:::data
+    idem[DynamoDB Idempotency]:::data
+  end
+
+  kms --> supabase
+  ingestion --> supabase
+  processor --> supabase
+  processor --> orders
+  processor --> idem
+
+  subgraph operations[Operations and Security]
+    direction LR
+    secrets[Secrets Manager<br/>dev/orders/supabase]:::ops
+    cloudtrail[CloudTrail]:::ops
+    logs[CloudWatch Logs and Metrics]:::ops
+  end
+
+  secrets --> ingestion
+  secrets --> processor
+  api --> logs
+  ingestion --> logs
+  processor --> logs
+  cloudtrail --> logs
+
+  subgraph cicd[GitHub CI/CD]
+    direction LR
+    pr[PR Plan Workflow]:::ci
+    apply[Main Apply Workflow]:::ci
+    drift[Scheduled Drift Workflow]:::ci
+    oidc[GitHub OIDC]:::ci
+  end
+
+  pr --> oidc
+  apply --> oidc
+  drift --> oidc
+  oidc --> logs

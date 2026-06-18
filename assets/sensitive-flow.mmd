@@ -1,0 +1,27 @@
+flowchart LR
+  classDef input fill:#E8F3FF,stroke:#2563EB,color:#0F172A,stroke-width:1.5px;
+  classDef crypto fill:#FEF3C7,stroke:#D97706,color:#0F172A,stroke-width:1.5px;
+  classDef safe fill:#DCFCE7,stroke:#15803D,color:#0F172A,stroke-width:1.5px;
+  classDef guard fill:#FEE2E2,stroke:#DC2626,color:#0F172A,stroke-width:1.5px;
+
+  request[Inbound request<br/>payload.sensitive.ssn = plaintext]:::input --> ingestion[Ingestion Lambda]:::input
+  ingestion --> extract[Extract and validate SSN]:::input
+  extract --> kms[KMS Encrypt]:::crypto
+  extract --> mask[Mask SSN<br/>***-**-6789]:::crypto
+
+  kms --> ciphertext[Ciphertext<br/>ssn_encrypted]:::safe
+  mask --> masked[Masked metadata<br/>ssn_masked]:::safe
+
+  ciphertext --> supabase[Supabase public.orders<br/>customer_id<br/>ssn_masked<br/>ssn_encrypted<br/>encryption_version]:::safe
+  masked --> supabase
+
+  masked --> sanitize[Sanitized event payload<br/>ssn_masked + ssn_ref]:::safe
+  sanitize --> sqs[SQS event message]:::safe
+  sqs --> processor[Processor Lambda]:::safe
+  processor --> ddb[DynamoDB orders<br/>business fields only]:::safe
+
+  ingestion --> response[HTTP 202 response<br/>correlationId + eventId only]:::safe
+  ingestion --> logs[Structured logs<br/>eventId eventType hasSensitiveData]:::safe
+
+  plaintextBlocked[Plaintext SSN never stored in<br/>Supabase, SQS, DynamoDB,<br/>response, or logs]:::guard
+  request -. transient only .-> plaintextBlocked
