@@ -6,7 +6,7 @@ This project is intentionally focused on practical cloud engineering: reliable a
 
 ## Architecture
 
-![Architecture diagram](assets/architecture-supabase-audit.svg)
+![Architecture diagram](assets/architecture.png)
 
 - **API Gateway HTTP API** exposes the event ingestion endpoint.
 - **Ingestion Lambda** validates incoming events, adds correlation metadata, emits EMF metrics, and sends accepted events to SQS.
@@ -221,7 +221,7 @@ The ingestion Lambda immediately encrypts the SSN with AWS KMS, stores only ciph
 
 ## Limitations And Future Improvements
 
-- Automated tests are not implemented yet.
+- Unit tests cover Lambda ingress, processor, and log-redaction paths, but broader integration and end-to-end tests are still not implemented.
 - A future DLQ observer could emit `EventDeadLettered` while preserving replay/investigation semantics.
 - The current environment is a single dev deployment, not a multi-environment production module.
 - Some operational scenarios are intentionally simulated to demonstrate observability and incident response.
