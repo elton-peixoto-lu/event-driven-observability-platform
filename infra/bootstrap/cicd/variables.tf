@@ -40,6 +40,12 @@ variable "default_branch" {
   default     = "main"
 }
 
+variable "github_apply_environment_name" {
+  description = "GitHub Actions environment name used by terraform apply jobs"
+  type        = string
+  default     = "dev"
+}
+
 variable "state_bucket_force_destroy" {
   description = "Whether the Terraform state bucket can be force destroyed"
   type        = bool

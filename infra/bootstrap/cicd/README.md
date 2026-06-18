@@ -9,7 +9,7 @@ This Terraform stack creates the AWS foundation required to operate this reposit
 - GitHub Actions plan role
 - GitHub Actions apply role
 
-If you also run CI from a fork, add that repository slug to `github_allowed_repositories` so the AWS OIDC trust policy accepts both the upstream and the fork.
+If you also run CI from a fork, add that repository slug to `github_allowed_repositories` so the AWS OIDC trust policy accepts both the upstream and the fork. If your apply workflow targets a GitHub environment, keep `github_apply_environment_name` aligned with that environment so the apply role accepts the OIDC subject emitted by GitHub.
 
 ## Apply
 

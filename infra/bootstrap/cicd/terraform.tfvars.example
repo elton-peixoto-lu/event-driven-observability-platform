@@ -6,4 +6,5 @@ github_repo    = "event-driven-observability-platform"
 github_allowed_repositories = [
   "elton-peixoto-lu/event-driven-observability-platform",
 ]
+github_apply_environment_name = "dev"
 default_branch = "main"
