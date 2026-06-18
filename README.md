@@ -167,7 +167,9 @@ GitHub Actions now uses AWS OIDC with short-lived credentials and the remote Ter
 
 - Pull requests to `main` run `.github/workflows/terraform-plan.yml` with the plan role.
 - Pushes to `main` and manual dispatch run `.github/workflows/terraform-apply.yml` with the apply role.
+- `.github/workflows/terraform-drift.yml` runs on a daily schedule and fails if `terraform plan -detailed-exitcode` finds drift in `infra/envs/dev`.
 - Both workflows rebuild the Lambda deployment artifacts before `terraform plan` or `terraform apply`.
+- The CI pipeline runs `npm test` before building artifacts, covering Lambda ingestion, Lambda processing, and safe log redaction behavior with mocked AWS/Supabase dependencies.
 - The apply workflow targets the GitHub `dev` environment, so you can add required reviewers or wait timers in repository settings without changing code.
 
 ## Example Event
