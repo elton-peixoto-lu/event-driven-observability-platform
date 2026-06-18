@@ -1,3 +1,5 @@
+data "aws_caller_identity" "current" {}
+
 resource "aws_cognito_user_pool" "main" {
   name = "${var.project_name}-user-pool"
 
@@ -30,7 +32,7 @@ resource "aws_cognito_user_pool_client" "app_user" {
 
 
 resource "aws_cognito_user_pool_domain" "main" {
-  domain       = "${var.project_name}-auth"
+  domain       = "${var.project_name}-${data.aws_caller_identity.current.account_id}-auth"
   user_pool_id = aws_cognito_user_pool.main.id
 }
 
