@@ -1,0 +1,6 @@
+bucket         = "REPLACE_WITH_TERRAFORM_OUTPUT_terraform_state_bucket"
+key            = "terraform/envs/dev/terraform.tfstate"
+region         = "us-east-2"
+dynamodb_table = "REPLACE_WITH_TERRAFORM_OUTPUT_terraform_lock_table"
+encrypt        = true
+kms_key_id     = "REPLACE_WITH_TERRAFORM_OUTPUT_terraform_state_kms_key_arn"

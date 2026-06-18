@@ -6,7 +6,7 @@ This project is intentionally focused on practical cloud engineering: reliable a
 
 ## Architecture
 
-![Architecture diagram](assets/architecture.png)
+![Architecture diagram](assets/architecture-supabase-audit.svg)
 
 - **API Gateway HTTP API** exposes the event ingestion endpoint.
 - **Ingestion Lambda** validates incoming events, adds correlation metadata, emits EMF metrics, and sends accepted events to SQS.
@@ -147,7 +147,8 @@ Both Lambdas load the secret at runtime from Secrets Manager. The only Supabase-
 
 ```bash
 cd infra/envs/dev
-terraform init
+cp ../../bootstrap/cicd/backend.hcl.example backend.hcl
+terraform init -backend-config=backend.hcl
 terraform validate
 terraform apply
 ```
@@ -159,6 +160,15 @@ The Terraform output includes a CloudWatch dashboard URL:
 ```bash
 terraform output dashboard_url
 ```
+
+## CI/CD
+
+GitHub Actions now uses AWS OIDC with short-lived credentials and the remote Terraform backend created by `infra/bootstrap/cicd`.
+
+- Pull requests to `main` run `.github/workflows/terraform-plan.yml` with the plan role.
+- Pushes to `main` and manual dispatch run `.github/workflows/terraform-apply.yml` with the apply role.
+- Both workflows rebuild the Lambda deployment artifacts before `terraform plan` or `terraform apply`.
+- The apply workflow targets the GitHub `dev` environment, so you can add required reviewers or wait timers in repository settings without changing code.
 
 ## Example Event
 
@@ -210,7 +220,6 @@ The ingestion Lambda immediately encrypts the SSN with AWS KMS, stores only ciph
 ## Limitations And Future Improvements
 
 - Automated tests are not implemented yet.
-- CI/CD is not implemented yet.
 - A future DLQ observer could emit `EventDeadLettered` while preserving replay/investigation semantics.
 - The current environment is a single dev deployment, not a multi-environment production module.
 - Some operational scenarios are intentionally simulated to demonstrate observability and incident response.
