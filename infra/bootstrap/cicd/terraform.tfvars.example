@@ -3,4 +3,7 @@ project_name   = "event-driven-observability-platform"
 environment    = "shared"
 github_owner   = "willianferreira"
 github_repo    = "event-driven-observability-platform"
+github_allowed_repositories = [
+  "elton-peixoto-lu/event-driven-observability-platform",
+]
 default_branch = "main"

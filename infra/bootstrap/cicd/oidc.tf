@@ -32,10 +32,7 @@ data "aws_iam_policy_document" "github_actions_plan_assume" {
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values = [
-        "repo:${local.repo_slug}:pull_request",
-        "repo:${local.repo_slug}:ref:refs/heads/${var.default_branch}",
-      ]
+      values   = local.plan_allowed_subjects
     }
   }
 }
@@ -60,9 +57,7 @@ data "aws_iam_policy_document" "github_actions_apply_assume" {
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values = [
-        "repo:${local.repo_slug}:ref:refs/heads/${var.default_branch}",
-      ]
+      values   = local.apply_allowed_subjects
     }
   }
 }

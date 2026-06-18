@@ -18,6 +18,7 @@ env:
   TF_DIR: infra/envs/dev
   TF_IN_AUTOMATION: "true"
   TF_INPUT: "false"
+  TF_VAR_alerts_email: ${{ secrets.TF_VAR_ALERTS_EMAIL }}
   TF_STATE_BUCKET: edop-tfstate-265311921862-us-east-2
   TF_STATE_KEY: terraform/envs/dev/terraform.tfstate
   TF_LOCK_TABLE: event-driven-observability-platform-terraform-locks

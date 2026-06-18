@@ -170,6 +170,7 @@ GitHub Actions now uses AWS OIDC with short-lived credentials and the remote Ter
 - `.github/workflows/terraform-drift.yml` runs on a daily schedule and fails if `terraform plan -detailed-exitcode` finds drift in `infra/envs/dev`.
 - Both workflows rebuild the Lambda deployment artifacts before `terraform plan` or `terraform apply`.
 - The CI pipeline runs `npm test` before building artifacts, covering Lambda ingestion, Lambda processing, and safe log redaction behavior with mocked AWS/Supabase dependencies.
+- `alerts_email` is injected through the GitHub secret `TF_VAR_ALERTS_EMAIL`, so the workflows can plan/apply without hardcoding operational values in the repository.
 - The apply workflow targets the GitHub `dev` environment, so you can add required reviewers or wait timers in repository settings without changing code.
 
 ## Example Event

@@ -28,6 +28,12 @@ variable "github_repo" {
   default     = "event-driven-observability-platform"
 }
 
+variable "github_allowed_repositories" {
+  description = "Additional GitHub repositories allowed to assume the CI/CD roles via OIDC"
+  type        = list(string)
+  default     = []
+}
+
 variable "default_branch" {
   description = "Default branch allowed to run apply"
   type        = string
