@@ -1,23 +1,16 @@
-name: Terraform Plan
+name: Terraform Drift Detection
 
 on:
-  pull_request:
-    branches:
-      - main
-    paths:
-      - ".github/workflows/terraform-*.yml"
-      - "infra/envs/dev/**"
-      - "services/**"
-      - "scripts/build-lambdas.js"
-      - "package.json"
-      - "package-lock.json"
+  schedule:
+    - cron: "0 10 * * *"
+  workflow_dispatch:
 
 permissions:
   contents: read
   id-token: write
 
 concurrency:
-  group: terraform-dev-plan-${{ github.event.pull_request.number || github.ref }}
+  group: terraform-dev-drift
   cancel-in-progress: true
 
 env:
@@ -32,7 +25,7 @@ env:
   AWS_ROLE_ARN_PLAN: arn:aws:iam::265311921862:role/event-driven-observability-platform-github-actions-plan
 
 jobs:
-  plan:
+  drift-detection:
     runs-on: ubuntu-latest
 
     steps:
@@ -64,10 +57,7 @@ jobs:
         with:
           role-to-assume: ${{ env.AWS_ROLE_ARN_PLAN }}
           aws-region: ${{ env.AWS_REGION }}
-          role-session-name: github-actions-terraform-plan
-
-      - name: Check Terraform formatting
-        run: terraform fmt -check -recursive infra/envs/dev infra/bootstrap/cicd
+          role-session-name: github-actions-terraform-drift
 
       - name: Terraform init
         working-directory: ${{ env.TF_DIR }}
@@ -84,17 +74,41 @@ jobs:
         working-directory: ${{ env.TF_DIR }}
         run: terraform validate
 
-      - name: Terraform plan
+      - name: Detect drift
+        id: drift
         working-directory: ${{ env.TF_DIR }}
-        run: terraform plan -no-color -out=tfplan
+        run: |
+          set +e
+          terraform plan -no-color -detailed-exitcode -out=tfplan
+          exit_code=$?
+          set -e
 
-      - name: Render plan output
+          if [ "$exit_code" -eq 1 ]; then
+            echo "Terraform plan failed"
+            exit 1
+          fi
+
+          if [ "$exit_code" -eq 2 ]; then
+            echo "drift_detected=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "drift_detected=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Render drift plan
+        if: steps.drift.outputs.drift_detected == 'true'
         working-directory: ${{ env.TF_DIR }}
         run: terraform show -no-color tfplan > tfplan.txt
 
-      - name: Upload plan artifact
+      - name: Upload drift artifact
+        if: steps.drift.outputs.drift_detected == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: terraform-dev-plan
+          name: terraform-dev-drift-plan
           path: infra/envs/dev/tfplan.txt
           if-no-files-found: error
+
+      - name: Fail when drift is detected
+        if: steps.drift.outputs.drift_detected == 'true'
+        run: |
+          echo "Terraform drift detected for infra/envs/dev"
+          exit 1

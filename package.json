@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "node scripts/build-lambdas.js"
+    "build": "node scripts/build-lambdas.js",
+    "test": "node --test tests/unit/**/*.test.js"
   },
   "devDependencies": {
     "archiver": "^7.0.1",
