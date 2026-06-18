@@ -6,7 +6,7 @@ This project is intentionally focused on practical cloud engineering: reliable a
 
 ## Architecture
 
-![Architecture diagram](assets/architecture-supabase-audit.svg)
+![Architecture diagram](assets/architecture.png)
 
 - **API Gateway HTTP API** exposes the event ingestion endpoint.
 - **Ingestion Lambda** validates incoming events, adds correlation metadata, emits EMF metrics, and sends accepted events to SQS.
